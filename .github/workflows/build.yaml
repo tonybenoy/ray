@@ -7,8 +7,6 @@ on:
   pull_request:
     branches:
       - main
-  release:
-    types: [published]
 
 jobs:
   build:
@@ -33,7 +31,6 @@ jobs:
   release:
     needs: build
     runs-on: ubuntu-latest
-    if: github.event_name == 'release'
 
     steps:
       - name: Checkout code
