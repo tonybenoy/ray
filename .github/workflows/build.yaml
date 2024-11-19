@@ -41,14 +41,16 @@ jobs:
         with:
           name: ray-windows
           path: .
+
       - name: Extract version from Cargo.toml
         id: cargo-version
         run: echo "VERSION=$(grep '^version =' Cargo.toml | sed -n 's/version = \"\([0-9.]*\)\"/\1/p')" >> $GITHUB_ENV
         shell: bash
+
       - name: Create GitHub Release
         run: |
-          gh release create v${{ steps.cargo-version.outputs.VERSION }} \
-            --title "v${{ steps.cargo-version.outputs.VERSION }}" \
+          gh release create v${{ env.VERSION }} \
+            --title "v${{ env.VERSION }}" \
             ray.exe
         env:
           GITHUB_TOKEN: ${{ github.TOKEN }}
