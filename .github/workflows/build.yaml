@@ -50,3 +50,6 @@ jobs:
           gh release create v${{ steps.cargo-version.outputs.VERSION }} \
             --title "v${{ steps.cargo-version.outputs.VERSION }}" \
             ray.exe
+        env:
+          GITHUB_TOKEN: ${{ github.TOKEN }}
+        shell: bash
