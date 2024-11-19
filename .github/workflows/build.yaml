@@ -11,10 +11,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Install Rust
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
 
@@ -22,7 +22,7 @@ jobs:
         run: cargo build --release
 
       - name: Upload release asset
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: ray-windows
           path: target/release/ray.exe
@@ -33,10 +33,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Download build artifact
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4
         with:
           name: ray-windows
           path: .
@@ -46,7 +46,7 @@ jobs:
         run: echo "VERSION=$(grep '^version =' Cargo.toml | sed -E 's/version = \"([^\"]+)\"/\\1/')" >> $GITHUB_ENV
 
       - name: Create GitHub Release
-        uses: actions/create-release@v1
+        uses: elgohr/Github-Release-Action@v5
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
