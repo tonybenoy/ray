@@ -48,7 +48,7 @@ jobs:
       - name: Create release artifact
         run: |
           mkdir -p release
-          cp target/release/your_executable_name release/
+          cp target/release/ray.exe release/
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
