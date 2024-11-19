@@ -72,7 +72,6 @@ fn main() {
     }
 
     let cmd = &args[0];
-    println!("Command: {}", cmd);
 
     let command_mapping = package_manager.get_command_mapping();
     if command_mapping.contains_key(cmd.as_str()) {
