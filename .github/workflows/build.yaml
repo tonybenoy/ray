@@ -4,29 +4,28 @@ on:
   push:
     branches:
       - main
-  pull_request:
-    branches:
-      - main
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Set up Rust
+      - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-          override: true
 
-      - name: Build
+      - name: Build project
         run: cargo build --release
 
-      - name: Run tests
-        run: cargo test
+      - name: Upload release asset
+        uses: actions/upload-artifact@v2
+        with:
+          name: ray-windows
+          path: target/release/ray.exe
 
   release:
     needs: build
@@ -36,26 +35,23 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Set up Rust
-        uses: actions-rs/toolchain@v1
+      - name: Download build artifact
+        uses: actions/download-artifact@v2
         with:
-          toolchain: stable
-          override: true
+          name: ray-windows
+          path: .
 
-      - name: Build
-        run: cargo build --release
+      - name: Extract version from Cargo.toml
+        id: cargo-version
+        run: echo "VERSION=$(grep '^version =' Cargo.toml | sed -E 's/version = \"([^\"]+)\"/\\1/')" >> $GITHUB_ENV
 
-      - name: Create release artifact
-        run: |
-          mkdir -p release
-          cp target/release/ray.exe release/
+      - name: Create GitHub Release
+        uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload release asset
-        uses: actions/upload-release-asset@v1
         with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: release/your_executable_name
-          asset_name: your_executable_name
-          asset_content_type: application/octet-stream
+          tag_name: v${{ env.VERSION }}
+          release_name: Release v${{ env.VERSION }}
+          draft: false
+          prerelease: false
+          files: ray.exe
