@@ -11,7 +11,7 @@ Ray is a command-line tool that maps common `pacman` commands to `winget` comman
 
 ### Install with winget
 
-Ray is not available on the Windows Package Manager due to [this](https://github.com/microsoft/winget-pkgs/pull/193143#issuecomment-2495410629). You can dowload the latest ray-winget.zip from  release from the [releases page](https://github.com/tonybenoy/ray/releases/lates) and run the following command to install it after unziping it.
+Ray is not available on the Windows Package Manager due to [this](https://github.com/microsoft/winget-pkgs/pull/193143#issuecomment-2495410629). You can dowload the latest ray-winget.zip from  release from the [releases page](https://github.com/tonybenoy/ray/releases/latest) and run the following command to install it after unziping it.
 
 ```sh
 winget install Microsoft.VCRedist.2015+.x64
