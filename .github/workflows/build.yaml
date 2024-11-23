@@ -50,6 +50,11 @@ jobs:
           name: ray-windows
           path: .
 
+      - name: Download winget artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ray-winget
+
       - name: Extract version from Cargo.toml
         id: cargo-version
         run: echo "VERSION=$(grep '^version =' Cargo.toml | sed -n 's/version = \"\([0-9.]*\)\"/\1/p')" >> $GITHUB_ENV
@@ -58,8 +63,8 @@ jobs:
       - name: Create GitHub Release
         run: |
           gh release create v${{ env.VERSION }} \
-            --title "v${{ env.VERSION }}" \
-            ray.exe
+          --title "v${{ env.VERSION }}" \
+          ray.exe ray-winget.zip
         env:
           GITHUB_TOKEN: ${{ github.TOKEN }}
         shell: bash
