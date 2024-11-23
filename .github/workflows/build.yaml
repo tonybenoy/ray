@@ -29,7 +29,7 @@ jobs:
           path: target/release/ray.exe
 
       - name: Zip winget-pkgs folder
-        run: zip -r ray-winget.zip winget-pkgs
+        run: Compress-Archive -Path winget-pkgs -DestinationPath ray-winget.zip
 
       - name: Upload winget release asset
         uses: actions/upload-artifact@v4
