@@ -31,11 +31,11 @@ jobs:
       - name: Zip winget-pkg folder
         run: Compress-Archive -Path winget-pkg -DestinationPath ray-winget.zip
 
-      - name: Upload winget release asset
-        uses: actions/upload-artifact@v4
-        with:
-          name: ray-winget
-          path: ray-winget.zip
+      #- name: Upload winget release asset
+      #  uses: actions/upload-artifact@v4
+      #  with:
+      #    name: ray-winget
+      #    path: ray-winget.zip
   release:
     needs: build
     runs-on: ubuntu-latest
@@ -50,10 +50,10 @@ jobs:
           name: ray-windows
           path: .
 
-      - name: Download winget artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: ray-winget
+      #- name: Download winget artifact
+      #  uses: actions/download-artifact@v4
+      #  with:
+      #   name: ray-winget
 
       - name: Extract version from Cargo.toml
         id: cargo-version
@@ -64,7 +64,7 @@ jobs:
         run: |
           gh release create v${{ env.VERSION }} \
           --title "v${{ env.VERSION }}" \
-          ray.exe ray-winget.zip
+#          ray.exe ray-winget.zip
         env:
           GITHUB_TOKEN: ${{ github.TOKEN }}
         shell: bash
