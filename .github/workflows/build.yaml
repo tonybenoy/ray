@@ -70,11 +70,23 @@ jobs:
         run: echo "VERSION=$(grep '^version =' Cargo.toml | sed -n 's/version = \"\([0-9.]*\)\"/\1/p')" >> $GITHUB_ENV
         shell: bash
 
+      - name: Delete existing release if it exists
+        run: |
+          if gh release view v${{ env.VERSION }} >/dev/null 2>&1; then
+            echo "Release v${{ env.VERSION }} exists, deleting..."
+            gh release delete v${{ env.VERSION }} --yes
+          else
+            echo "Release v${{ env.VERSION }} does not exist"
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+
       - name: Create GitHub Release
         run: |
           gh release create v${{ env.VERSION }} \
           --title "v${{ env.VERSION }}" \
-#          ray.exe ray-winget.zip
+          ray.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
