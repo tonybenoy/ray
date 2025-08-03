@@ -19,6 +19,9 @@ jobs:
         with:
           toolchain: stable
 
+      - name: Run tests
+        run: cargo test
+
       - name: Build project
         run: cargo build --release
 
@@ -29,7 +32,13 @@ jobs:
           path: target/release/ray.exe
 
       - name: Zip winget-pkg folder
-        run: Compress-Archive -Path winget-pkg -DestinationPath ray-winget.zip
+        run: |
+          if (Test-Path "./winget-pkg") {
+            Compress-Archive -Path "./winget-pkg" -DestinationPath "./ray-winget.zip"
+          } else {
+            Write-Host "winget-pkg folder not found, skipping zip creation"
+            echo "null" > ray-winget.zip
+          }
 
       #- name: Upload winget release asset
       #  uses: actions/upload-artifact@v4
@@ -53,7 +62,8 @@ jobs:
       #- name: Download winget artifact
       #  uses: actions/download-artifact@v4
       #  with:
-      #   name: ray-winget
+      #    name: ray-winget
+      #    path: .
 
       - name: Extract version from Cargo.toml
         id: cargo-version
@@ -66,5 +76,5 @@ jobs:
           --title "v${{ env.VERSION }}" \
 #          ray.exe ray-winget.zip
         env:
-          GITHUB_TOKEN: ${{ github.TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
