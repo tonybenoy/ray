@@ -54,4 +54,5 @@ Add ray to your PATH to use it from anywhere.
 - `-Si`: Show package information
 - `-Qs`: Search for installed packages
 
-All other winget commands can be used as well by simple passing the command as an argument to `ray`.
+All other winget commands can be used as well by simple passing the command as an argument to `ray`. 
+
