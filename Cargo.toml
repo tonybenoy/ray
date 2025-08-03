@@ -1,7 +1,17 @@
 [package]
 name = "ray"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "Pacman for winget"
 
+[lib]
+name = "ray"
+path = "src/lib.rs"
+
+[[bin]]
+name = "ray"
+path = "src/main.rs"
+
 [dependencies]
+log = "0.4"
+env_logger = "0.10"
