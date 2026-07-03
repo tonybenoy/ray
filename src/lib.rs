@@ -61,8 +61,8 @@ pub struct Winget;
 impl PackageManager for Winget {
     fn get_command_mapping(&self) -> HashMap<&str, Vec<&str>> {
         let mut pacman_to_winget: HashMap<&str, Vec<&str>> = HashMap::new();
-        pacman_to_winget.insert("-Syu", vec!["upgrade", "--all"]);
-        pacman_to_winget.insert("-Syyu", vec!["source", "update", "&&", "upgrade", "--all"]);
+        pacman_to_winget.insert("-Syu", vec!["upgrade", "--all", "--include-unknown"]);
+        pacman_to_winget.insert("-Syyu", vec!["source", "update", "&&", "upgrade", "--all", "--include-unknown"]);
         pacman_to_winget.insert("-Sy", vec!["source", "update"]);
         pacman_to_winget.insert("-S", vec!["install"]);
         pacman_to_winget.insert("-Ss", vec!["search"]);
@@ -89,6 +89,7 @@ impl PackageManager for Winget {
         -Qi        Show package details\n\
         -Si        Show package details from remote\n\
         -Qs        List installed packages matching search term\n\
+        --self-update  Update ray to the latest release\n\
         -h, --help  Show this help message\n"
     }
 
@@ -97,90 +98,111 @@ impl PackageManager for Winget {
     }
 }
 
+/// Self-update: replace the running ray.exe with the latest GitHub release.
+///
+/// The download-sign-swap logic lives in `self-update.ps1`, embedded at compile
+/// time, so the binary carries its own updater and needs no extra crates. The
+/// script self-signs the new binary so Smart App Control keeps allowing it.
+pub mod self_update {
+    use super::*;
+    use std::fs;
+    use std::process::Command;
+
+    const SCRIPT: &str = include_str!("../self-update.ps1");
+
+    pub fn run() -> Result<()> {
+        let exe = std::env::current_exe()?;
+        let script_path = std::env::temp_dir().join("ray-self-update.ps1");
+        fs::write(&script_path, SCRIPT)?;
+
+        info!("Running self-update for {}", exe.display());
+        let status = Command::new("powershell")
+            .args([
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                &script_path.to_string_lossy(),
+                "-TargetPath",
+                &exe.to_string_lossy(),
+                "-CurrentVersion",
+                env!("CARGO_PKG_VERSION"),
+            ])
+            .status()?;
+
+        if !status.success() {
+            return Err(RayError::ExecutionFailed(format!(
+                "Self-update failed with exit code: {}",
+                status.code().unwrap_or(-1)
+            )));
+        }
+        Ok(())
+    }
+}
+
 pub mod command_handler {
     use super::*;
     use std::process::Command;
 
-    /// Execute a sequence of commands, handling chained commands separated by "&&"
+    /// Sub-commands that are meaningless without a package name or search term.
+    const REQUIRES_ARG: [&str; 4] = ["install", "search", "uninstall", "show"];
+
+    /// Turn a mapping value into the concrete winget invocations to run.
+    ///
+    /// `commands` is the mapping value, whose sub-commands may be chained with a
+    /// `"&&"` separator. `extra_args` are the user's arguments following the
+    /// pacman-style flag; they are forwarded to the **final** sub-command (e.g.
+    /// the package name for `-S`, or the search term for `-Qs`).
+    pub fn plan_invocations(commands: &[&str], extra_args: &[String]) -> Result<Vec<Vec<String>>> {
+        let sub_commands: Vec<&[&str]> = commands
+            .split(|token| *token == "&&")
+            .filter(|sub| !sub.is_empty())
+            .collect();
+
+        let mut invocations = Vec::with_capacity(sub_commands.len());
+        for (idx, cmd_args) in sub_commands.iter().enumerate() {
+            if REQUIRES_ARG.contains(&cmd_args[0]) && extra_args.is_empty() {
+                return Err(RayError::InvalidArguments(format!(
+                    "The command '{}' requires a package name or search term.",
+                    cmd_args[0]
+                )));
+            }
+
+            let mut invocation: Vec<String> = cmd_args.iter().map(|s| s.to_string()).collect();
+            if idx == sub_commands.len() - 1 {
+                invocation.extend(extra_args.iter().cloned());
+            }
+            invocations.push(invocation);
+        }
+        Ok(invocations)
+    }
+
+    /// Execute a mapped command, running each chained sub-command in order.
     pub fn run_commands(executable: &str, commands: &[&str], args: &[String]) -> Result<()> {
-        let mut i = 0;
-        while i < commands.len() {
-            let mut cmd_args = Vec::new();
-            while i < commands.len() && commands[i] != "&&" {
-                cmd_args.push(commands[i]);
-                i += 1;
-            }
-            i += 1; // Skip "&&"
-
-            if cmd_args.is_empty() {
-                continue;
-            }
-
-            // Commands that require additional arguments
-            let requires_arg = ["install", "search", "uninstall", "show"];
-            if requires_arg.contains(&cmd_args[0]) {
-                if args.len() <= 1 {
-                    return Err(RayError::InvalidArguments(
-                        format!("The command '{}' requires a package name or search term.", cmd_args[0])
-                    ));
-                }
-            }
-
-            execute_single_command(executable, &cmd_args, args)?;
+        for invocation in plan_invocations(commands, &args[1..])? {
+            run(executable, &invocation)?;
         }
         Ok(())
     }
 
-    /// Execute a single command with proper error handling
-    fn execute_single_command(executable: &str, cmd_args: &[&str], user_args: &[String]) -> Result<()> {
-        let mut full_cmd = Vec::with_capacity(cmd_args.len() + user_args.len() + 1);
-        full_cmd.push(executable);
-        full_cmd.extend(cmd_args);
-        
-        // Add user arguments if this command needs them
-        let requires_arg = ["install", "search", "uninstall", "show"];
-        if !cmd_args.is_empty() && requires_arg.contains(&cmd_args[0]) && user_args.len() > 1 {
-            for arg in &user_args[1..] {
-                full_cmd.push(arg.as_str());
-            }
-        }
-
-        info!("Executing command: {}", full_cmd.join(" "));
-        println!("Running: {}", full_cmd.join(" "));
-        
-        let status = Command::new(executable)
-            .args(&full_cmd[1..])
-            .status()?;
-
-        if !status.success() {
-            return Err(RayError::ExecutionFailed(
-                format!("Command failed with exit code: {}", status.code().unwrap_or(-1))
-            ));
-        }
-        
-        Ok(())
-    }
-
-    /// Execute a direct command (passthrough to the underlying package manager)
+    /// Execute a direct command (passthrough to the underlying package manager).
     pub fn run_direct_command(executable: &str, args: &[String]) -> Result<()> {
-        let mut cmd_parts = Vec::with_capacity(args.len() + 1);
-        cmd_parts.push(executable);
-        for arg in args {
-            cmd_parts.push(arg.as_str());
-        }
-        info!("Executing direct command: {}", cmd_parts.join(" "));
-        println!("Running: {}", cmd_parts.join(" "));
-        
-        let status = Command::new(executable)
-            .args(args)
-            .status()?;
+        run(executable, args)
+    }
 
+    /// Run `executable` with `args`, returning an error on a non-zero exit code.
+    fn run(executable: &str, args: &[String]) -> Result<()> {
+        let line = format!("{} {}", executable, args.join(" "));
+        info!("Executing command: {}", line);
+        println!("Running: {}", line);
+
+        let status = Command::new(executable).args(args).status()?;
         if !status.success() {
-            return Err(RayError::ExecutionFailed(
-                format!("Command failed with exit code: {}", status.code().unwrap_or(-1))
-            ));
+            return Err(RayError::ExecutionFailed(format!(
+                "Command failed with exit code: {}",
+                status.code().unwrap_or(-1)
+            )));
         }
-        
         Ok(())
     }
 }
@@ -198,7 +220,7 @@ mod tests {
         assert_eq!(mapping.get("-R"), Some(&vec!["uninstall"]));
         assert_eq!(mapping.get("-Ss"), Some(&vec!["search"]));
         assert_eq!(mapping.get("-Q"), Some(&vec!["list"]));
-        assert_eq!(mapping.get("-Syu"), Some(&vec!["upgrade", "--all"]));
+        assert_eq!(mapping.get("-Syu"), Some(&vec!["upgrade", "--all", "--include-unknown"]));
     }
 
     #[test]
@@ -232,5 +254,47 @@ mod tests {
         assert!(requires_arg.contains(&"install"));
         assert!(requires_arg.contains(&"search"));
         assert!(!requires_arg.contains(&"list"));
+    }
+
+    #[test]
+    fn test_plan_forwards_term_to_query_command() {
+        // Regression: `-Qs firefox` must pass the term through -> `winget list firefox`
+        let inv = command_handler::plan_invocations(&["list"], &["firefox".to_string()]).unwrap();
+        assert_eq!(inv, vec![vec!["list".to_string(), "firefox".to_string()]]);
+    }
+
+    #[test]
+    fn test_plan_query_command_without_term_is_ok() {
+        // `-Q` (list everything) needs no term.
+        let inv = command_handler::plan_invocations(&["list"], &[]).unwrap();
+        assert_eq!(inv, vec![vec!["list".to_string()]]);
+    }
+
+    #[test]
+    fn test_plan_chained_forwards_only_to_last_subcommand() {
+        // `-Syyu` -> `winget source update` then `winget upgrade --all --include-unknown`
+        let inv = command_handler::plan_invocations(
+            &["source", "update", "&&", "upgrade", "--all", "--include-unknown"],
+            &[],
+        )
+        .unwrap();
+        assert_eq!(
+            inv,
+            vec![
+                vec!["source".to_string(), "update".to_string()],
+                vec![
+                    "upgrade".to_string(),
+                    "--all".to_string(),
+                    "--include-unknown".to_string()
+                ],
+            ]
+        );
+    }
+
+    #[test]
+    fn test_plan_requires_arg_errors_without_term() {
+        // `-S` with no package name must be rejected before touching winget.
+        assert!(command_handler::plan_invocations(&["install"], &[]).is_err());
+        assert!(command_handler::plan_invocations(&["install"], &["vim".to_string()]).is_ok());
     }
 }

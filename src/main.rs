@@ -11,7 +11,7 @@ fn main() {
     // Initialize logger
     env_logger::init();
     
-    if cfg!(target_os = "windows") == false {
+    if !cfg!(target_os = "windows") {
         error!("This program only runs on Windows.");
         eprintln!("This program only runs on Windows.");
         process::exit(1);
@@ -22,7 +22,7 @@ fn main() {
     // Get command line arguments, excluding the program name
     let args: Vec<String> = env::args().skip(1).collect();
     // Check for help flag or empty arguments
-    let help_flags = vec!["-h", "--help"];
+    let help_flags = ["-h", "--help"];
     if env::args().any(|arg| help_flags.contains(&arg.as_str())) || args.is_empty() {
         println!("{}", package_manager.get_help_message());
         println!("{} commands:", package_manager.get_executable_name());
@@ -35,6 +35,16 @@ fn main() {
                 process::exit(1);
             }
         }
+    }
+
+    // Handle self-update before checking for winget; updating ray needs no winget.
+    if args[0] == "--self-update" || args[0] == "self-update" {
+        if let Err(e) = ray::self_update::run() {
+            error!("Self-update failed: {}", e);
+            eprintln!("Error: {}", e);
+            process::exit(1);
+        }
+        process::exit(0);
     }
 
     // Check if the package manager is available
