@@ -1,0 +1,3 @@
+# Normalize all text files to LF in the repository and on checkout.
+# Prevents CRLF churn from Windows clones (autocrlf).
+* text=auto eol=lf
